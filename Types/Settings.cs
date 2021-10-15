@@ -46,6 +46,7 @@ namespace D2RAssist.Types
             public static readonly double Opacity = 0.70;
             public static bool AlwaysOnTop = true;
             public static bool HideInTown = true;
+            public static bool ToggleOnInGameMap = true;
             public static int Size = 450;
             public static MapPosition Position = MapPosition.TopRight;
             public static int UpdateTime = 750;

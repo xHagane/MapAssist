@@ -108,16 +108,29 @@ namespace D2RAssist
                     mapOverlay.Show();
                     mapOverlay.Refresh();
                 }
-
             }
             timer.Start();
         }
 
         private bool ShouldHideMap()
         {
-            return Globals.CurrentGameData.MapSeed == 0 || 
-                (Settings.Map.HideInTown == true &&
-                Globals.CurrentGameData.AreaId.IsTown());
+            if (Globals.CurrentGameData.MapSeed == 0 || !Globals.CurrentGameData.GameWindowActive)
+            {
+                return true;
+            }
+
+            if (Settings.Map.HideInTown && Globals.CurrentGameData.AreaId.IsTown())
+            {
+                return true;
+            }
+
+            if (Settings.Map.ToggleOnInGameMap)
+            {
+                // Hide the map if the ingame map is hidden
+                return !Globals.CurrentGameData.MapShown;
+            }
+
+            return false;
         }
 
         private void mapOverlay_Paint(object sender, PaintEventArgs e)
