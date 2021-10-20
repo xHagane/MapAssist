@@ -28,17 +28,116 @@ namespace D2RAssist.Helpers
 {
     class GameMemory
     {
+        private static bool CheckPattern(string[] patternBytes, byte[] arrayToCheck)
+        {
+            var length = arrayToCheck.Length;
+            var x = 0;
+            foreach (var b in arrayToCheck)
+            {
+                if (patternBytes[x] == "?")
+                    ++x;
+                else if (byte.Parse(patternBytes[x], System.Globalization.NumberStyles.HexNumber) == b)
+                    ++x;
+                else
+                    return false;
+            }
+            return true;
+        }
+        private static IntPtr MemoryScan(ProcessModule processModule, ref IntPtr processHandle, string pattern)
+        {
+            IntPtr baseAddress = processModule.BaseAddress;
+            var moduleSize = processModule.ModuleMemorySize;
+            var patternBytes = pattern.Split(' ');
+            var memoryBuffer = new byte[moduleSize];
+            if (WindowsExternal.ReadProcessMemory(processHandle, baseAddress, memoryBuffer, moduleSize, out _) == false)
+            {
+                Console.WriteLine("We failed to read the process memory");
+                return IntPtr.Zero;
+            }
+            try
+            {
+                for (var y = 0; y < moduleSize; ++y)
+                {
+                    if (memoryBuffer[y] == byte.Parse(patternBytes[0], System.Globalization.NumberStyles.HexNumber))
+                    {
+                        var arrayToCheck = new byte[patternBytes.Length];
+                        for (var x = 0; x < patternBytes.Length; ++x)
+                        {
+                            arrayToCheck[x] = memoryBuffer[y + x];
+                        }
+                        if (CheckPattern(patternBytes, arrayToCheck))
+                        {
+                            return baseAddress + y;
+                        }
+                        else
+                        {
+                            y += patternBytes.Length - (patternBytes.Length / 2);
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                return IntPtr.Zero;
+            }
+            Console.WriteLine("We failed to find the pattern");
+            return IntPtr.Zero;
+        }
+        private static int GetPlayerUnitOffset(ProcessModule processModule, ref IntPtr processHandle)
+        {
+            if (Offsets.PlayerUnit == 0)
+            {
+                var patternAddress = MemoryScan(processModule, ref processHandle, "57 48 83 ec ? 33 ff 48 8d 05");
+                if (patternAddress != IntPtr.Zero)
+                {
+                    var offsetBuffer = new byte[4];
+                    var resultRelativeAddress = IntPtr.Add(patternAddress, 10);
+                    if (WindowsExternal.ReadProcessMemory(processHandle, resultRelativeAddress, offsetBuffer, sizeof(int), out _))
+                    {
+                        var offsetAddressToInt = BitConverter.ToInt32(offsetBuffer, 0);
+                        var delta = patternAddress.ToInt64() - processModule.BaseAddress.ToInt64();
+                        var offset = (int)(delta + 14 + offsetAddressToInt);
+                        Console.WriteLine("We found the offset for PlayerUnit at 0x" + offset.ToString("X"));
+                        Offsets.PlayerUnit = offset;
+                    }
+                }
+            }
+            return Offsets.PlayerUnit;
+        }
+        private static int GetInGameMapOffset(ProcessModule processModule, ref IntPtr processHandle)
+        {
+            if (Offsets.InGameMap == 0)
+            {
+                var patternAddress = MemoryScan(processModule, ref processHandle, "40 84 ed 0f 94 05");
+                if (patternAddress != IntPtr.Zero)
+                {
+                    var offsetBuffer = new byte[4];
+                    var resultRelativeAddress = IntPtr.Add(patternAddress, 6);
+                    if (WindowsExternal.ReadProcessMemory(processHandle, resultRelativeAddress, offsetBuffer, sizeof(int), out _))
+                    {
+                        var offsetAddressToInt = BitConverter.ToInt32(offsetBuffer, 0);
+                        var delta = patternAddress.ToInt64() - processModule.BaseAddress.ToInt64();
+                        var offset = (int)(delta + 10 + offsetAddressToInt);
+                        Console.WriteLine("We found the offset for IsGameMap at 0x" + offset.ToString("X"));
+                        Offsets.InGameMap = offset;
+                    }
+                }
+            }
+            return Offsets.InGameMap;
+        }
         public static GameData GetGameData()
         {
             // Clean up and organize, add better exception handeling.
+            IntPtr processHandle = IntPtr.Zero;
             try
             {
                 Process gameProcess = Process.GetProcessesByName("D2R")[0];
-                IntPtr processHandle =
+                processHandle =
                     WindowsExternal.OpenProcess((uint)WindowsExternal.ProcessAccessFlags.VirtualMemoryRead, false,
                         gameProcess.Id);
                 IntPtr processAddress = gameProcess.MainModule.BaseAddress;
-                IntPtr pPlayerUnit = IntPtr.Add(processAddress, Offsets.PlayerUnit);
+                var playerUnitOffset = GetPlayerUnitOffset(gameProcess.MainModule, ref processHandle);
+                IntPtr pPlayerUnit = IntPtr.Add(processAddress, playerUnitOffset);
 
                 var addressBuffer = new byte[8];
                 var dwordBuffer = new byte[4];
@@ -95,7 +194,10 @@ namespace D2RAssist.Helpers
                 var aLevel = (IntPtr)BitConverter.ToInt64(addressBuffer, 0);
 
                 if (addressBuffer.All(o => o == 0))
+                {
+                    WindowsExternal.CloseHandle(processHandle);
                     return null;
+                }
 
                 IntPtr aLevelId = IntPtr.Add(aLevel, 0x1F8);
                 WindowsExternal.ReadProcessMemory(processHandle, aLevelId, dwordBuffer, dwordBuffer.Length, out _);
@@ -114,12 +216,16 @@ namespace D2RAssist.Helpers
                 WindowsExternal.ReadProcessMemory(processHandle, posYAddress, addressBuffer, addressBuffer.Length,
                     out _);
                 var playerY = BitConverter.ToUInt16(addressBuffer, 0);
-                    
-                IntPtr uiSettingsPath = IntPtr.Add(processAddress, Offsets.InGameMap);
+
+
+                var inGameMapOffset = GetInGameMapOffset(gameProcess.MainModule, ref processHandle);
+                IntPtr uiSettingsPath = IntPtr.Add(processAddress, inGameMapOffset);
                 WindowsExternal.ReadProcessMemory(processHandle, uiSettingsPath, byteBuffer, byteBuffer.Length,
                     out _);
                 var mapShown = BitConverter.ToBoolean(byteBuffer, 0);
-                
+
+                WindowsExternal.CloseHandle(processHandle);
+
                 return new GameData
                 {
                     PlayerPosition = new Point(playerX, playerY),
@@ -132,6 +238,8 @@ namespace D2RAssist.Helpers
             }
             catch (Exception)
             {
+                if (processHandle != IntPtr.Zero)
+                    WindowsExternal.CloseHandle(processHandle);
                 return null;
             }
         }

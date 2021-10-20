@@ -30,7 +30,10 @@ namespace D2RAssist.Helpers
             bool bInheritHandle,
             int processId
         );
-
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool CloseHandle(
+            IntPtr hObject
+        );
         [Flags]
         public enum ProcessAccessFlags : uint
         {
