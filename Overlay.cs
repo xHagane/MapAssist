@@ -42,6 +42,7 @@ namespace D2RAssist
         private MapApi _mapApi;
         private bool _show = true;
         private Screen _screen;
+        private GameMemory _gameMemory;
 
         public Overlay(IKeyboardMouseEvents keyboardMouseEvents)
         {
@@ -65,6 +66,7 @@ namespace D2RAssist
             Size = new Size(width, height);
             Opacity = Settings.Map.Opacity;
 
+            _gameMemory = new GameMemory();
             _timer.Interval = Settings.Map.UpdateTime;
             _timer.Tick += MapUpdateTimer_Tick;
             _timer.Start();
@@ -92,7 +94,7 @@ namespace D2RAssist
         {
             _timer.Stop();
 
-            GameData gameData = GameMemory.GetGameData();
+            GameData gameData = _gameMemory.GetGameData();
             if (gameData != null)
             {
                 if (gameData.HasGameChanged(_currentGameData))
