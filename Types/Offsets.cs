@@ -16,13 +16,15 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
+using System.Configuration;
+using System;
 
 namespace MapAssist.Types
 {
     public static class Offsets
     {
-        public static int UnitHashTable = 0x20AF660;
-        public static int UiSettings = 0x20BF322;
+        public static int UnitHashTable = Convert.ToInt32(ConfigurationManager.AppSettings["UnitHashTable"], 16);
+        public static int UiSettings = Convert.ToInt32(ConfigurationManager.AppSettings["UiSettings"], 16);
         public static int ExpansionCheck = 0x20BF335;
     }
 }
