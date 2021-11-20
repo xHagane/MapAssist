@@ -28,14 +28,16 @@ namespace MapAssist.Helpers
 {
     public static class GameManager
     {
-        private static readonly string ProcessName = Encoding.UTF8.GetString(new byte[] { 68, 50, 82 });
-        private static IntPtr PlayerUnitPtr = IntPtr.Zero;
+        private static readonly string ProcessName = Encoding.UTF8.GetString(new byte[] {68, 50, 82});
         private static Types.UnitAny _PlayerUnit = default;
         private static int LastProcessId = 0;
         private static IntPtr _MainWindowHandle = IntPtr.Zero;
         private static ProcessContext _ProcessContext;
         private static Process GameProcess;
-
+        private static IntPtr _UnitHashTableOffset;
+        private static IntPtr _UiSettingOffset;
+        private static IntPtr _ExpansionCheckOffset;
+        
         public static ProcessContext GetProcessContext()
         {
             if (_ProcessContext != null && _ProcessContext.OpenContextCount > 0)
@@ -45,7 +47,7 @@ namespace MapAssist.Helpers
                 {
                     _ProcessContext.OpenContextCount++;
                     return _ProcessContext;
-                } 
+                }
                 else
                 {
                     GameProcess = null;
@@ -73,7 +75,7 @@ namespace MapAssist.Helpers
                     gameProcess = processes.FirstOrDefault();
                 }
 
-                if (gameProcess == null)
+                if (gameProcess == null || windowInFocus != gameProcess.MainWindowHandle)
                 {
                     throw new Exception("Game process not found.");
                 }
@@ -111,17 +113,19 @@ namespace MapAssist.Helpers
                             {
                                 if (unitAny.IsPlayerUnit())
                                 {
-                                    PlayerUnitPtr = pUnitAny;
                                     _PlayerUnit = unitAny;
                                     return _PlayerUnit;
                                 }
+
                                 unitAny = unitAny.ListNext;
                             }
                         }
-                    } else
+                    }
+                    else
                     {
                         return _PlayerUnit;
                     }
+
                     throw new Exception("Player unit not found.");
                 }
             }
@@ -133,7 +137,12 @@ namespace MapAssist.Helpers
             {
                 using (var processContext = GetProcessContext())
                 {
-                    return processContext.Read<UnitHashTable>(processContext.FromOffset(Offsets.UnitHashTable));
+                    if (_UnitHashTableOffset == IntPtr.Zero)
+                    {
+                        _UnitHashTableOffset = processContext.GetUnitHashtableOffset();
+                    }
+
+                    return processContext.Read<UnitHashTable>(_UnitHashTableOffset);
                 }
             }
         }
@@ -144,15 +153,39 @@ namespace MapAssist.Helpers
             {
                 using (var processContext = GetProcessContext())
                 {
-                    return new Types.UiSettings(processContext.FromOffset(Offsets.UiSettings));
+                    if (_UiSettingOffset == IntPtr.Zero)
+                    {
+                        _UiSettingOffset = processContext.GetUiSettingsOffset();
+                    }
+                    return new Types.UiSettings(_UiSettingOffset);
                 }
+            }
+        }
+
+        public static IntPtr ExpansionCheckOffset
+        {
+            get
+            {
+                if (_ExpansionCheckOffset != IntPtr.Zero)
+                {
+                    return _ExpansionCheckOffset;
+                }
+
+                using (var processContext = GetProcessContext())
+                {
+                    _ExpansionCheckOffset = processContext.GetExpansionOffset();
+                }
+
+                return _ExpansionCheckOffset;
             }
         }
 
         public static void ResetPlayerUnit()
         {
             _PlayerUnit = default;
-            PlayerUnitPtr = IntPtr.Zero;
+            _UiSettingOffset = IntPtr.Zero;
+            _UnitHashTableOffset = IntPtr.Zero;
+            _ExpansionCheckOffset = IntPtr.Zero;
         }
     }
 }
