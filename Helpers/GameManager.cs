@@ -28,24 +28,28 @@ namespace MapAssist.Helpers
 {
     public static class GameManager
     {
-        private static readonly string ProcessName = Encoding.UTF8.GetString(new byte[] { 68, 50, 82 });
-        private static IntPtr PlayerUnitPtr = IntPtr.Zero;
+        private static readonly string ProcessName = Encoding.UTF8.GetString(new byte[] {68, 50, 82});
         private static Types.UnitAny _PlayerUnit = default;
         private static int LastProcessId = 0;
         private static IntPtr _MainWindowHandle = IntPtr.Zero;
         private static ProcessContext _ProcessContext;
         private static Process GameProcess;
+        private static IntPtr _UnitHashTableOffset;
+        private static IntPtr _UiSettingOffset;
+        private static IntPtr _ExpansionCheckOffset;
+        private static IntPtr _GameIPOffset;
 
         public static ProcessContext GetProcessContext()
         {
+            var windowInFocus = IntPtr.Zero;
             if (_ProcessContext != null && _ProcessContext.OpenContextCount > 0)
             {
-                IntPtr windowInFocus = WindowsExternal.GetForegroundWindow();
+                windowInFocus = WindowsExternal.GetForegroundWindow();
                 if (_MainWindowHandle == windowInFocus)
                 {
                     _ProcessContext.OpenContextCount++;
                     return _ProcessContext;
-                } 
+                }
                 else
                 {
                     GameProcess = null;
@@ -58,20 +62,12 @@ namespace MapAssist.Helpers
 
                 Process gameProcess = null;
 
-                IntPtr windowInFocus = WindowsExternal.GetForegroundWindow();
                 if (windowInFocus == IntPtr.Zero)
                 {
-                    gameProcess = processes.FirstOrDefault();
-                }
-                else
-                {
-                    gameProcess = processes.FirstOrDefault(p => p.MainWindowHandle == windowInFocus);
+                    windowInFocus = WindowsExternal.GetForegroundWindow();
                 }
 
-                if (gameProcess == null)
-                {
-                    gameProcess = processes.FirstOrDefault();
-                }
+                gameProcess = processes.FirstOrDefault(p => p.MainWindowHandle == windowInFocus);
 
                 if (gameProcess == null)
                 {
@@ -103,7 +99,7 @@ namespace MapAssist.Helpers
                 {
                     if (Equals(_PlayerUnit, default(Types.UnitAny)))
                     {
-                        foreach (var pUnitAny in UnitHashTable.UnitTable)
+                        foreach (var pUnitAny in UnitHashTable().UnitTable)
                         {
                             var unitAny = new Types.UnitAny(pUnitAny);
 
@@ -111,30 +107,34 @@ namespace MapAssist.Helpers
                             {
                                 if (unitAny.IsPlayerUnit())
                                 {
-                                    PlayerUnitPtr = pUnitAny;
                                     _PlayerUnit = unitAny;
                                     return _PlayerUnit;
                                 }
+
                                 unitAny = unitAny.ListNext;
                             }
                         }
-                    } else
+                    }
+                    else
                     {
                         return _PlayerUnit;
                     }
+
                     throw new Exception("Player unit not found.");
                 }
             }
         }
 
-        public static UnitHashTable UnitHashTable
+        public static UnitHashTable UnitHashTable(int offset = 0)
         {
-            get
+            using (var processContext = GetProcessContext())
             {
-                using (var processContext = GetProcessContext())
+                if (_UnitHashTableOffset == IntPtr.Zero)
                 {
-                    return processContext.Read<UnitHashTable>(processContext.FromOffset(Offsets.UnitHashTable));
+                    _UnitHashTableOffset = processContext.GetUnitHashtableOffset();
                 }
+
+                return processContext.Read<UnitHashTable>(IntPtr.Add(_UnitHashTableOffset, offset));
             }
         }
 
@@ -144,15 +144,58 @@ namespace MapAssist.Helpers
             {
                 using (var processContext = GetProcessContext())
                 {
-                    return new Types.UiSettings(processContext.FromOffset(Offsets.UiSettings));
+                    if (_UiSettingOffset == IntPtr.Zero)
+                    {
+                        _UiSettingOffset = processContext.GetUiSettingsOffset();
+                    }
+
+                    return new Types.UiSettings(_UiSettingOffset);
                 }
+            }
+        }
+
+        public static IntPtr ExpansionCheckOffset
+        {
+            get
+            {
+                if (_ExpansionCheckOffset != IntPtr.Zero)
+                {
+                    return _ExpansionCheckOffset;
+                }
+
+                using (var processContext = GetProcessContext())
+                {
+                    _ExpansionCheckOffset = processContext.GetExpansionOffset();
+                }
+
+                return _ExpansionCheckOffset;
+            }
+        }
+        public static IntPtr GameIPOffset
+        {
+            get
+            {
+                if (_GameIPOffset != IntPtr.Zero)
+                {
+                    return _GameIPOffset;
+                }
+
+                using (var processContext = GetProcessContext())
+                {
+                    _GameIPOffset = processContext.GetGameIPOffset();
+                }
+
+                return _GameIPOffset;
             }
         }
 
         public static void ResetPlayerUnit()
         {
             _PlayerUnit = default;
-            PlayerUnitPtr = IntPtr.Zero;
+            _UiSettingOffset = IntPtr.Zero;
+            _UnitHashTableOffset = IntPtr.Zero;
+            _ExpansionCheckOffset = IntPtr.Zero;
+            _GameIPOffset = IntPtr.Zero;
         }
     }
 }

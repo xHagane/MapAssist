@@ -18,28 +18,49 @@
  **/
 
 using System.Drawing;
+using YamlDotNet.Serialization;
 
 namespace MapAssist.Settings
 {
-    public class PointOfInterestRendering
+    public class IconRendering
     {
-        public Color IconColor;
-        public Shape IconShape;
-        public int IconSize;
+        [YamlMember(Alias = "IconColor", ApplyNamingConventions = false)]
+        public Color IconColor { get; set; }
 
-        public Color LineColor;
-        public float LineThickness;
+        [YamlMember(Alias = "IconShape", ApplyNamingConventions = false)]
+        public Shape IconShape { get; set; }
 
-        public int ArrowHeadSize;
+        [YamlMember(Alias = "IconSize", ApplyNamingConventions = false)]
+        public int IconSize { get; set; }
 
-        public Color LabelColor;
-        public string LabelFont;
-        public int LabelFontSize;
+        [YamlMember(Alias = "IconThickness", ApplyNamingConventions = false)]
+        public float IconThickness;
 
         public bool CanDrawIcon()
         {
             return IconShape != Shape.None && IconSize > 0 && IconColor != Color.Transparent;
         }
+    }
+
+    public class PointOfInterestRendering : IconRendering
+    {
+        [YamlMember(Alias = "LineColor", ApplyNamingConventions = false)]
+        public Color LineColor { get; set; }
+
+        [YamlMember(Alias = "LineThickness", ApplyNamingConventions = false)]
+        public float LineThickness { get; set; }
+
+        [YamlMember(Alias = "ArrowHeadSize", ApplyNamingConventions = false)]
+        public int ArrowHeadSize { get; set; }
+
+        [YamlMember(Alias = "LabelColor", ApplyNamingConventions = false)]
+        public Color LabelColor { get; set; }
+
+        [YamlMember(Alias = "LabelFont", ApplyNamingConventions = false)]
+        public string LabelFont { get; set; }
+
+        [YamlMember(Alias = "LabelFontSize", ApplyNamingConventions = false)]
+        public int LabelFontSize { get; set; }
 
         public bool CanDrawLine()
         {
@@ -57,9 +78,5 @@ namespace MapAssist.Settings
                    LabelFontSize > 0;
         }
     }
-    public class MonsterRendering
-    {
-        public Color NormalColor;
-        public Color EliteColor;
-    }
+
 }

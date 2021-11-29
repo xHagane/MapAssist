@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
+using MapAssist.Settings;
 using MapAssist.Types;
 
 namespace MapAssist.Helpers
@@ -41,8 +42,8 @@ namespace MapAssist.Helpers
             GameObject.HellForge,
             GameObject.NihlathakWildernessStartPosition
         };
-        
-        private static readonly HashSet<GameObject> GoodChests = new HashSet<GameObject>
+
+        private static readonly HashSet<GameObject> SuperChests = new HashSet<GameObject>
         {
             GameObject.GoodChest,
             GameObject.SparklyChest,
@@ -50,6 +51,73 @@ namespace MapAssist.Helpers
             GameObject.ArcaneLargeChestRight,
             GameObject.ArcaneSmallChestLeft,
             GameObject.ArcaneSmallChestRight
+        };
+
+        private static readonly HashSet<GameObject> NormalChests = new HashSet<GameObject>
+        {
+            GameObject.LargeChestRight,
+            GameObject.LargeChestLeft,
+            GameObject.TombLargeChestL,
+            GameObject.TombLargeChestR,
+            GameObject.Act1LargeChestRight,
+            GameObject.Act1TallChestRight,
+            GameObject.Act1MediumChestRight,
+            GameObject.Act1LargeChest1,
+            GameObject.Act2MediumChestRight,
+            GameObject.Act2LargeChestRight,
+            GameObject.Act2LargeChestLeft,
+            GameObject.MediumChestLeft,
+            GameObject.LargeChestLeft2,
+            GameObject.JungleChest,
+            GameObject.JungleMediumChestLeft,
+            GameObject.TallChestLeft,
+            GameObject.Gchest1L,
+            GameObject.Gchest2R,
+            GameObject.Gchest3R,
+            GameObject.GLchest3L,
+            GameObject.MafistoLargeChestLeft,
+            GameObject.MafistoLargeChestRight,
+            GameObject.MafistoMediumChestLeft,
+            GameObject.MafistoMediumChestRight,
+            GameObject.SpiderLairLargeChestLeft,
+            GameObject.SpiderLairTallChestLeft,
+            GameObject.SpiderLairMediumChestRight,
+            GameObject.SpiderLairTallChestRight,
+            GameObject.HoradricCubeChest,
+            GameObject.HoradricScrollChest,
+            GameObject.StaffOfKingsChest,
+            GameObject.LargeChestR,
+            GameObject.InnerHellBoneChest,
+            GameObject.KhalimChest1,
+            GameObject.KhalimChest2,
+            GameObject.KhalimChest3,
+            GameObject.ExpansionChestRight,
+            GameObject.ExpansionWoodChestLeft,
+            GameObject.BurialChestLeft,
+            GameObject.BurialChestRight,
+            GameObject.ExpansionChestLeft,
+            GameObject.ExpansionWoodChestRight,
+            GameObject.ExpansionSmallChestLeft,
+            GameObject.ExpansionSmallChestRight,
+            GameObject.ExpansionExplodingChest,
+            GameObject.ExpansionSpecialChest,
+            GameObject.ExpansionSnowyWoodChestLeft,
+            GameObject.ExpansionSnowyWoodChestRight,
+            GameObject.ExpansionSnowyWoodChest2Left,
+            GameObject.ExpansionSnowyWoodChest2Right,
+            GameObject.NotSoGoodChest,
+        };
+
+        private static readonly HashSet<GameObject> ArmorWeapRacks = new HashSet<GameObject>
+        {
+            GameObject.ExpansionArmorStandRight,
+            GameObject.ExpansionArmorStandLeft,
+            GameObject.ArmorStandRight,
+            GameObject.ArmorStandLeft,
+            GameObject.ExpansionWeaponRackRight,
+            GameObject.ExpansionWeaponRackLeft,
+            GameObject.WeaponRackRight,
+            GameObject.WeaponRackLeft,
         };
 
         private static readonly HashSet<GameObject> Shrines = new HashSet<GameObject>
@@ -96,8 +164,9 @@ namespace MapAssist.Helpers
                         {
                             Label = realTomb.Name(),
                             Position = areaData.AdjacentLevels[realTomb].Exits[0],
-                            RenderingSettings = Settings.Rendering.NextArea
-                        }); ;
+                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.NextArea
+                        });
+                        ;
                     }
 
                     break;
@@ -115,7 +184,7 @@ namespace MapAssist.Helpers
                                 {
                                     Label = highestArea.Name(),
                                     Position = areaData.AdjacentLevels[highestArea].Exits[0],
-                                    RenderingSettings = Settings.Rendering.NextArea
+                                    RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.NextArea
                                 });
                             }
                         }
@@ -134,7 +203,7 @@ namespace MapAssist.Helpers
                                 {
                                     Label = level.Area.Name(),
                                     Position = position,
-                                    RenderingSettings = Settings.Rendering.PreviousArea
+                                    RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.PreviousArea
                                 });
                             }
                         }
@@ -160,7 +229,7 @@ namespace MapAssist.Helpers
                     {
                         Label = obj.ToString(),
                         Position = points[0],
-                        RenderingSettings = Settings.Rendering.Waypoint
+                        RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.Waypoint
                     });
                 }
                 // Quest objects
@@ -168,23 +237,10 @@ namespace MapAssist.Helpers
                 {
                     pointOfInterest.Add(new PointOfInterest
                     {
-                        Label = obj.ToString(),
-                        Position = points[0],
-                        RenderingSettings = Settings.Rendering.Quest
+                        Label = obj.ToString(), 
+                        Position = points[0], 
+                        RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.Quest
                     });
-                }
-                // Chests
-                else if (GoodChests.Contains(obj))
-                {
-                    foreach (Point point in points)
-                    {
-                        pointOfInterest.Add(new PointOfInterest
-                        {
-                            Label = obj.ToString(),
-                            Position = point,
-                            RenderingSettings = Settings.Rendering.SuperChest
-                        });
-                    }
                 }
                 // Shrines
                 else if (Shrines.Contains(obj))
@@ -193,9 +249,48 @@ namespace MapAssist.Helpers
                     {
                         pointOfInterest.Add(new PointOfInterest
                         {
+                            Label = obj.ToString(), 
+                            Position = point, 
+                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.Shrine
+                        });
+                    }
+                }
+                // Super Chest
+                else if (SuperChests.Contains(obj))
+                {
+                    foreach (Point point in points)
+                    {
+                        pointOfInterest.Add(new PointOfInterest
+                        {
                             Label = obj.ToString(),
                             Position = point,
-                            RenderingSettings = Settings.Rendering.Shrine
+                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.SuperChest
+                        });
+                    }
+                }
+                // Normal Chest
+                else if (NormalChests.Contains(obj))
+                {
+                    foreach (Point point in points)
+                    {
+                        pointOfInterest.Add(new PointOfInterest
+                        {
+                            Label = obj.ToString(),
+                            Position = point,
+                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.NormalChest
+                        });
+                    }
+                }
+                // Armor Stands & Weapon Racks
+                else if (ArmorWeapRacks.Contains(obj))
+                {
+                    foreach (Point point in points)
+                    {
+                        pointOfInterest.Add(new PointOfInterest
+                        {
+                            Label = obj.ToString(),
+                            Position = point,
+                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.ArmorWeapRack
                         });
                     }
                 }
