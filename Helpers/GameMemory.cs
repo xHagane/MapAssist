@@ -19,8 +19,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Media;
 using System.Text;
 using MapAssist.Settings;
 using MapAssist.Types;
@@ -29,6 +27,7 @@ namespace MapAssist.Helpers
 {
     public static class GameMemory
     {
+        private static readonly NLog.Logger _log = NLog.LogManager.GetCurrentClassLogger();
         private static Dictionary<int, uint> _lastMapSeed = new Dictionary<int, uint>();
         private static int _currentProcessId;
         public static GameData GetGameData()
@@ -40,6 +39,11 @@ namespace MapAssist.Helpers
                     _currentProcessId = processContext.ProcessId;
                     var playerUnit = GameManager.PlayerUnit;
                     playerUnit.Update();
+
+                    if (!playerUnit.IsValidUnit())
+                    {
+                        throw new Exception("Player unit not found");
+                    }
 
                     var mapSeed = playerUnit.Act.MapSeed;
 
@@ -68,6 +72,9 @@ namespace MapAssist.Helpers
                     }
 
                     var gameIP = Encoding.ASCII.GetString(processContext.Read<byte>(GameManager.GameIPOffset, 15)).TrimEnd((char)0);
+
+                    var menuOpen = processContext.Read<byte>(GameManager.MenuOpenOffset);
+                    //no menu open = 0, left menu open = 1, right menu open = 2, both menus open = 3
 
                     var actId = playerUnit.Act.ActId;
 
@@ -104,13 +111,21 @@ namespace MapAssist.Helpers
                         Monsters = monsterList,
                         Items = itemList,
                         GameIP = gameIP,
-                        PlayerUnit = playerUnit
+                        PlayerUnit = playerUnit,
+                        MenuOpen = menuOpen
                     };
                 }
             }
             catch (Exception exception)
             {
-                Console.WriteLine(exception.Message);
+                if (exception.Message == "Game process not found.")
+                {
+                    _log.Debug(exception);
+                }
+                else
+                {
+                    _log.Error(exception);
+                }
                 GameManager.ResetPlayerUnit();
                 return null;
             }
@@ -123,8 +138,8 @@ namespace MapAssist.Helpers
                 var unitType = (UnitType)i;
                 foreach (var pUnitAny in unitHashTable.UnitTable)
                 {
-                    var unitAny = new Types.UnitAny(pUnitAny);
-                    while (unitAny.IsValid())
+                    var unitAny = new UnitAny(pUnitAny);
+                    while (unitAny.IsValidUnit())
                     {
                         switch (unitType)
                         {
@@ -169,7 +184,7 @@ namespace MapAssist.Helpers
             foreach (var room in rooms)
             {
                 var unitAny = room.UnitFirst;
-                while (unitAny.IsValid())
+                while (unitAny.IsValidUnit())
                 {
                     switch (unitAny.UnitType)
                     {

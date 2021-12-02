@@ -27,17 +27,16 @@ using SharpDX.Direct2D1;
 using SharpDX.Mathematics.Interop;
 using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Windows.Forms;
 using Bitmap = System.Drawing.Bitmap;
 using Color = GameOverlay.Drawing.Color;
 using Font = GameOverlay.Drawing.Font;
 using Graphics = GameOverlay.Drawing.Graphics;
-using Image = GameOverlay.Drawing.Image;
 using Point = GameOverlay.Drawing.Point;
 using SolidBrush = GameOverlay.Drawing.SolidBrush;
 
@@ -46,8 +45,6 @@ namespace MapAssist
     public class Overlay : IDisposable
     {
         private readonly GraphicsWindow _window;
-
-        private System.Windows.Forms.NotifyIcon _trayIcon;
 
         private GameData _currentGameData;
         private GameDataCache _gameDataCache;
@@ -61,7 +58,7 @@ namespace MapAssist
         public Overlay(IKeyboardMouseEvents keyboardMouseEvents)
         {
             _gameDataCache = new GameDataCache();
-            
+
             var gfx = new Graphics() {MeasureFPS = true};
 
             _brushes = new Dictionary<string, SolidBrush>();
@@ -72,54 +69,6 @@ namespace MapAssist
             _window.DrawGraphics += _window_DrawGraphics;
             _window.SetupGraphics += _window_SetupGraphics;
             _window.DestroyGraphics += _window_DestroyGraphics;
-
-            keyboardMouseEvents.KeyPress += (_, args) =>
-            {
-                if (InGame())
-                {
-                    if (args.KeyChar == MapAssistConfiguration.Loaded.HotkeyConfiguration.ToggleKey)
-                    {
-                        _show = !_show;
-                    }
-
-                    if (args.KeyChar == MapAssistConfiguration.Loaded.HotkeyConfiguration.ZoomInKey)
-                    {
-                        if (MapAssistConfiguration.Loaded.RenderingConfiguration.ZoomLevel > 0.25f)
-                        {
-                            MapAssistConfiguration.Loaded.RenderingConfiguration.ZoomLevel -= 0.25f;
-                            MapAssistConfiguration.Loaded.RenderingConfiguration.Size =
-                                (int)(MapAssistConfiguration.Loaded.RenderingConfiguration.Size * 1.15f);
-                        }
-                    }
-
-                    if (args.KeyChar == MapAssistConfiguration.Loaded.HotkeyConfiguration.ZoomOutKey)
-                    {
-                        if (MapAssistConfiguration.Loaded.RenderingConfiguration.ZoomLevel < 4f)
-                        {
-                            MapAssistConfiguration.Loaded.RenderingConfiguration.ZoomLevel += 0.25f;
-                            MapAssistConfiguration.Loaded.RenderingConfiguration.Size =
-                                (int)(MapAssistConfiguration.Loaded.RenderingConfiguration.Size * .85f);
-                        }
-                    }
-                }
-            };
-
-            _trayIcon = new System.Windows.Forms.NotifyIcon()
-            {
-                Icon = Properties.Resources.Icon1,
-                ContextMenu =
-                    new System.Windows.Forms.ContextMenu(
-                        new System.Windows.Forms.MenuItem[] {new System.Windows.Forms.MenuItem("Exit", Exit)}),
-                Text = "MapAssist",
-                Visible = true
-            };
-        }
-
-        void Exit(object sender, EventArgs e)
-        {
-            _trayIcon.Visible = false;
-
-            Dispose();
         }
 
         private void _window_SetupGraphics(object sender, SetupGraphicsEventArgs e)
@@ -168,7 +117,7 @@ namespace MapAssist
                 UpdateLocation();
                 DrawGameInfo(gfx, e.DeltaTime.ToString());
 
-                if (!_show ||
+                if (!_show || _currentGameData.MenuOpen > 0 ||
                     Array.Exists(MapAssistConfiguration.Loaded.HiddenAreas,
                         element => element == _currentGameData.Area) ||
                     (MapAssistConfiguration.Loaded.RenderingConfiguration.ToggleViaInGameMap &&
@@ -200,18 +149,17 @@ namespace MapAssist
                     case MapPosition.TopRight:
                         if (MapAssistConfiguration.Loaded.RenderingConfiguration.OverlayMode)
                         {
-                            anchor = new Point(_window.Width - smallCornerSize.Width, 0);
+                            anchor = new Point(_window.Width - smallCornerSize.Width, 100);
                         }
                         else
                         {
-                            anchor = new Point(_window.Width - gamemap.Width, 0);
+                            anchor = new Point(_window.Width - gamemap.Width, 100);
                         }                        
                         break;
                     default:
-                        anchor = new Point(LeftSideOffsetStart() + 100, 100);
+                        anchor = new Point(PlayerIconWidth() + 40, 100);
                         break;
                 }
-
 
                 if (MapAssistConfiguration.Loaded.RenderingConfiguration.OverlayMode && MapAssistConfiguration.Loaded.RenderingConfiguration.Position != MapPosition.Center)
                 {
@@ -265,26 +213,19 @@ namespace MapAssist
             }
         }
 
-        private int LeftSideOffsetStart()
-        {
-            var blackBarWidth = _window.Width > 2880 ? (_window.Width - 2880) / 4 : 0;
-            return blackBarWidth;
-        }
-
         private void DrawGameInfo(Graphics gfx, string renderDeltaText)
         {
             // Setup
-
-            var textXOffset = LeftSideOffsetStart() + (int)(_window.Width * .06f);
+            var textXOffset = PlayerIconWidth() + 50;
+            var textYOffset = PlayerIconWidth() + 50;
 
             var fontSize = MapAssistConfiguration.Loaded.ItemLog.LabelFontSize;
             var fontHeight = (fontSize + fontSize / 2);
-            var fontOffset = fontHeight;
 
             // Game IP
-            gfx.DrawText(_fonts["consolas"], _brushes["red"], textXOffset, fontOffset,
+            gfx.DrawText(_fonts["consolas"], _brushes["red"], textXOffset, textYOffset,
                 "Game IP: " + _currentGameData.GameIP);
-            fontOffset += fontHeight + 5;
+            textYOffset += fontHeight + 5;
 
             // Overlay FPS
             if (MapAssistConfiguration.Loaded.GameInfo.ShowOverlayFPS)
@@ -295,9 +236,9 @@ namespace MapAssist
                     .Append("DeltaTime: ").Append(renderDeltaText.PadRight(padding))
                     .ToString();
 
-                gfx.DrawText(_fonts["consolas"], _brushes["green"], textXOffset, fontOffset, infoText);
+                gfx.DrawText(_fonts["consolas"], _brushes["green"], textXOffset, textYOffset, infoText);
 
-                fontOffset += fontHeight;
+                textYOffset += fontHeight;
             }
 
             // Item log
@@ -343,7 +284,7 @@ namespace MapAssist
                         break;
                 }
 
-                gfx.DrawText(_fonts["itemlog"], color, textXOffset, fontOffset + (i * fontHeight),
+                gfx.DrawText(_fonts["itemlog"], color, textXOffset, textYOffset + (i * fontHeight),
                     itemLabelExtra + itemSpecialName + itemBaseName);
             }
         }
@@ -377,6 +318,37 @@ namespace MapAssist
                    WindowsExternal.GetForegroundWindow() == _currentGameData.MainWindowHandle;
         }
 
+        public void KeyPressHandler(object sender, KeyPressEventArgs args)
+        {
+            if (InGame())
+            {
+                if (args.KeyChar == MapAssistConfiguration.Loaded.HotkeyConfiguration.ToggleKey)
+                {
+                    _show = !_show;
+                }
+
+                if (args.KeyChar == MapAssistConfiguration.Loaded.HotkeyConfiguration.ZoomInKey)
+                {
+                    if (MapAssistConfiguration.Loaded.RenderingConfiguration.ZoomLevel > 0.25f)
+                    {
+                        MapAssistConfiguration.Loaded.RenderingConfiguration.ZoomLevel -= 0.25f;
+                        MapAssistConfiguration.Loaded.RenderingConfiguration.Size =
+                            (int)(MapAssistConfiguration.Loaded.RenderingConfiguration.Size * 1.15f);
+                    }
+                }
+
+                if (args.KeyChar == MapAssistConfiguration.Loaded.HotkeyConfiguration.ZoomOutKey)
+                {
+                    if (MapAssistConfiguration.Loaded.RenderingConfiguration.ZoomLevel < 4f)
+                    {
+                        MapAssistConfiguration.Loaded.RenderingConfiguration.ZoomLevel += 0.25f;
+                        MapAssistConfiguration.Loaded.RenderingConfiguration.Size =
+                            (int)(MapAssistConfiguration.Loaded.RenderingConfiguration.Size * .85f);
+                    }
+                }
+            }
+        }
+
         public Vector2 DeltaInWorldToMinimapDelta(Vector2 delta, double diag, float scale, float deltaZ = 0)
         {
             var CAMERA_ANGLE = -26F * 3.14159274F / 180;
@@ -393,8 +365,37 @@ namespace MapAssist
         /// </summary>
         private void UpdateLocation()
         {
-            _window.FitTo(_currentGameData.MainWindowHandle, true);
+            var rect = WindowRect();
+            var ultraWideMargin = UltraWideMargin();
+
+            _window.Resize(rect.Left + ultraWideMargin, rect.Top, rect.Right - rect.Left - ultraWideMargin * 2, rect.Bottom - rect.Top);
             _window.PlaceAbove(_currentGameData.MainWindowHandle);
+        }
+
+        private WindowBounds WindowRect()
+        {
+            WindowBounds rect;
+            WindowHelper.GetWindowClientBounds(_currentGameData.MainWindowHandle, out rect);
+
+            return rect;
+        }
+
+        private Size WindowSize()
+        {
+            var rect = WindowRect();
+            return new Size(rect.Right - rect.Left, rect.Bottom - rect.Top);
+        }
+
+        private int UltraWideMargin()
+        {
+            var size = WindowSize();
+            return (int)Math.Max(Math.Round((size.Width - size.Height * 2.1) / 2), 0);
+        }
+
+        private int PlayerIconWidth()
+        {
+            var size = WindowSize();
+            return (int)Math.Round(size.Height / 20f);
         }
 
         ~Overlay()

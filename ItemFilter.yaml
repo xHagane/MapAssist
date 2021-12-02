@@ -42,7 +42,7 @@ x-bases:
   Sockets: [0, 3, 4]
  - &player-arm-base
   Qualities: [normal, superior]
-  Sockets: [3, 4]
+  Sockets: [0, 3, 4]
   Ethereal: false
  - &merc-wep-base
   Ethereal: true
@@ -208,6 +208,15 @@ Crusader Gauntlets:
  - Qualities: rare
 Ogre Gauntlets:
  - Qualities: rare
+ 
+### Helmets
+Bone Visage:
+ - Qualities: [normal, superior]
+   Sockets: [0, 3]
+Demonhead:
+ - Qualities: [normal, superior]
+   Sockets: [0, 3]
+ - Qualities: unique #Andariel's Visage
 
 ### Circlets
 Circlet:
@@ -273,6 +282,7 @@ Zod Rune:
 
 ### Gems
 Flawless Ruby:
+Flawless Sapphire:
 Flawless Emerald:
 Flawless Amethyst:
 Flawless Diamond:
@@ -332,9 +342,6 @@ Eldritch Orb:
  - Qualities: unique
 #Arreat's Face
 Slayer Guard:
- - Qualities: unique
-#Andariel's Visage
-Demonhead:
  - Qualities: unique
 #Death's Web
 Unearthed Wand:

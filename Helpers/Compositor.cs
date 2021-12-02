@@ -24,6 +24,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using MapAssist.Types;
 using MapAssist.Settings;
+using MapAssist.Structs;
 
 namespace MapAssist.Helpers
 {
@@ -113,31 +114,56 @@ namespace MapAssist.Helpers
                     }
                 }
 
-                foreach (var unitAny in gameData.Monsters)
+                var monsterRenderingOrder = new IconRendering[]
                 {
-                    var mobRender = unitAny.IsElite() ? MapAssistConfiguration.Loaded.MapConfiguration.EliteMonster : MapAssistConfiguration.Loaded.MapConfiguration.NormalMonster;
+                    MapAssistConfiguration.Loaded.MapConfiguration.NormalMonster,
+                    MapAssistConfiguration.Loaded.MapConfiguration.EliteMonster,
+                    MapAssistConfiguration.Loaded.MapConfiguration.UniqueMonster,
+                    MapAssistConfiguration.Loaded.MapConfiguration.SuperUniqueMonster,
+                };
 
-                    if (mobRender.CanDrawIcon())
+                foreach (var mobRender in monsterRenderingOrder)
+                {
+                    foreach (var unitAny in gameData.Monsters)
                     {
-                        // Draw Monster Icon
-                        Bitmap icon = GetIcon(mobRender);
-                        var monsterPosition = adjustedPoint(unitAny.Position).OffsetFrom(GetIconOffset(mobRender));
-                        imageGraphics.DrawImage(icon, monsterPosition);
-
-                        // Draw Monster Immunities
-                        var iCount = unitAny.Immunities.Count;
-                        if (iCount > 0)
+                        if (mobRender == GetMonsterIconRendering(unitAny.MonsterData) && mobRender.CanDrawIcon())
                         {
-                            var rectSize = 2;
-                            var iX = -icon.Width / 2f - (rectSize * scaleWidth * 2) * (iCount - 1) / 2 + (rectSize * scaleWidth) / 2;
+                            Bitmap icon = GetIcon(mobRender);
+                            var monsterPosition = adjustedPoint(unitAny.Position).OffsetFrom(GetIconOffset(mobRender));
 
-                            foreach (var immunity in unitAny.Immunities)
+                            imageGraphics.DrawImage(icon, monsterPosition);
+                        }
+                    }
+                }
+
+                foreach (var mobRender in monsterRenderingOrder)
+                {
+                    foreach (var unitAny in gameData.Monsters)
+                    {
+                        if (mobRender == GetMonsterIconRendering(unitAny.MonsterData) && mobRender.CanDrawIcon())
+                        {
+                            Bitmap icon = GetIcon(mobRender);
+                            var monsterPosition = adjustedPoint(unitAny.Position).OffsetFrom(GetIconOffset(mobRender));
+
+                            // Draw Monster Immunities on top of monster icon
+                            var iCount = unitAny.Immunities.Count;
+                            if (iCount > 0)
                             {
-                                var iPoint = new Point((int)iX, icon.Height / 2);
-                                var brush = new SolidBrush(ResistColors.ResistColor[immunity]);
-                                var rect = new Rectangle(monsterPosition.OffsetFrom(iPoint), new Size((int)(rectSize * scaleWidth), (int)(rectSize * scaleWidth))); // Scale both by the width since width isn't impacted by depth in overlay mode
-                                imageGraphics.FillRectangle(brush, rect);
-                                iX += rectSize * scaleWidth * 2;
+                                var rectSize = mobRender.IconSize / 3; // Arbirarily made the size set to 1/3rd of the mob icon size. The import point is that it scales with the mob icon consistently.
+                                var dx = rectSize * scaleWidth * 1.5; // Amount of space each indicator will take up, including spacing (which is the 1.5)
+
+                                var iX = -icon.Width / 2f // Start at the center of the mob icon
+                                    + (rectSize * scaleWidth) / 2 // Make sure the center of the indicator lines up with the center of the mob icon
+                                    - dx * (iCount - 1) / 2; // Moves the first indicator sufficiently left so that the whole group of indicators will be centered.
+
+                                foreach (var immunity in unitAny.Immunities)
+                                {
+                                    var iPoint = new Point((int)Math.Round(iX), icon.Height / 2 + icon.Height / 12); // 1/12th of the height just helps move the icon a bit up to make it look nicer. Purely arbitrary.
+                                    var brush = new SolidBrush(ResistColors.ResistColor[immunity]);
+                                    var rect = new Rectangle(monsterPosition.OffsetFrom(iPoint), new Size((int)(rectSize * scaleWidth), (int)(rectSize * scaleWidth))); // Scale both by the width since width isn't impacted by depth in overlay mode
+                                    imageGraphics.FillEllipse(brush, rect);
+                                    iX += dx;
+                                }
                             }
                         }
                     }
@@ -162,6 +188,26 @@ namespace MapAssist.Helpers
             }
 
             return (image, localPlayerPosition);
+        }
+
+        private static IconRendering GetMonsterIconRendering(MonsterData monsterData)
+        {
+            if ((monsterData.MonsterType & MonsterTypeFlags.SuperUnique) == MonsterTypeFlags.SuperUnique)
+            {
+                return MapAssistConfiguration.Loaded.MapConfiguration.SuperUniqueMonster;
+            }
+
+            if ((monsterData.MonsterType & MonsterTypeFlags.Unique) == MonsterTypeFlags.Unique)
+            {
+                return MapAssistConfiguration.Loaded.MapConfiguration.UniqueMonster;
+            }
+
+            if (monsterData.MonsterType > 0)
+            {
+                return MapAssistConfiguration.Loaded.MapConfiguration.EliteMonster;
+            }
+
+            return MapAssistConfiguration.Loaded.MapConfiguration.NormalMonster;
         }
 
         private (Bitmap, Point, Point, Point) DrawBackground(AreaData areaData, IReadOnlyList<PointOfInterest> pointOfInterest)
@@ -287,10 +333,10 @@ namespace MapAssist.Helpers
             if (!_iconCache.ContainsKey(cacheKey))
             {
                 var distort = poiSettings.IconShape == Shape.Cross ? true : false;
-                var width = poiSettings.IconSize * scaleWidth + poiSettings.IconThickness;
-                var height = poiSettings.IconSize * (distort ? scaleHeight : scaleWidth) + poiSettings.IconThickness;
+                var width = (int)Math.Ceiling(poiSettings.IconSize * scaleWidth + poiSettings.IconThickness);
+                var height = (int)Math.Ceiling(poiSettings.IconSize * (distort ? scaleHeight : scaleWidth) + poiSettings.IconThickness);
 
-                var bitmap = new Bitmap((int)width, (int)height, PixelFormat.Format32bppArgb);
+                var bitmap = new Bitmap(width, height, PixelFormat.Format32bppArgb);
                 var pen = new Pen(poiSettings.IconColor, poiSettings.IconThickness);
                 var brush = new SolidBrush(poiSettings.IconColor);
                 using (var g = Graphics.FromImage(bitmap))
@@ -300,6 +346,9 @@ namespace MapAssist.Helpers
                     {
                         case Shape.Ellipse:
                             g.FillEllipse(brush, 0, 0, poiSettings.IconSize * scaleWidth, poiSettings.IconSize * scaleWidth);
+                            break;
+                        case Shape.EllipseOutline:
+                            g.DrawEllipse(pen, 0, 0, poiSettings.IconSize * scaleWidth, poiSettings.IconSize * scaleWidth);
                             break;
                         case Shape.Square:
                             g.FillRectangle(brush, 0, 0, poiSettings.IconSize * scaleWidth, poiSettings.IconSize * scaleWidth);
@@ -328,18 +377,17 @@ namespace MapAssist.Helpers
                             g.FillPolygon(brush, curvePoints);
                             break;
                         case Shape.Cross:
-                            var a = poiSettings.IconSize * 0.00f;
-                            var b = poiSettings.IconSize * 0.25f;
-                            var c = poiSettings.IconSize * 0.50f;
-                            var d = poiSettings.IconSize * 0.75f;
-                            var e = poiSettings.IconSize * 1.00f;
+                            var a = poiSettings.IconSize * 0.25f;
+                            var b = poiSettings.IconSize * 0.50f;
+                            var c = poiSettings.IconSize * 0.75f;
+                            var d = poiSettings.IconSize;
+
                             PointF[] crossLinePoints =
                             {
-                                new PointF(0, b), new PointF(b, a), new PointF(c, b), new PointF(d, a),
-                                new PointF(e, b), new PointF(d, c), new PointF(e, d), new PointF(d, e),
-                                new PointF(c, d), new PointF(b, e), new PointF(a, d), new PointF(b, c),
-                                new PointF(a, b),
-
+                                new PointF(0, a), new PointF(a, 0), new PointF(b, a), new PointF(c, 0),
+                                new PointF(d, a), new PointF(c, b), new PointF(d, c), new PointF(c, d),
+                                new PointF(b, c), new PointF(a, d), new PointF(0, c), new PointF(a, b),
+                                new PointF(0, a),
                             };
 
                             for (var i = 0; i < crossLinePoints.Length; i++)
