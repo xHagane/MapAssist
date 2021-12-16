@@ -19,11 +19,11 @@
 
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
 using System.Text;
+using GameOverlay.Drawing;
 using MapAssist.Helpers;
 using MapAssist.Interfaces;
+using MapAssist.Settings;
 using MapAssist.Structs;
 
 namespace MapAssist.Types
@@ -37,6 +37,7 @@ namespace MapAssist.Types
         private Inventory _inventory;
         private MonsterData _monsterData;
         private ItemData _itemData;
+        private ObjectData _objectData;
         private Dictionary<Stat, int> _statList;
         private List<Resist> _immunities;
         private uint[] _stateFlags;
@@ -44,6 +45,8 @@ namespace MapAssist.Types
         private string _name;
         private bool _isMonster;
         private bool _updated;
+        private Skill _skill;
+        private bool _isPlayerUnit;
 
         public UnitAny(IntPtr pUnit)
         {
@@ -61,28 +64,34 @@ namespace MapAssist.Types
                     if (IsValidUnit())
                     {
                         _path = new Path(_unitAny.pPath);
-                        var statListStruct = processContext.Read<StatListStruct>(_unitAny.pStatsListEx);
-                        var statList = new Dictionary<Stat, int>();
-                        var statValues = processContext.Read<StatValue>(statListStruct.Stats.FirstStatPtr,
-                            Convert.ToInt32(statListStruct.Stats.Size));
-                        foreach (var stat in statValues)
+                        if(_unitAny.pStatsListEx != IntPtr.Zero)
                         {
-                            //ensure we dont add duplicates
-                            if (!statList.TryGetValue(stat.Stat, out var _))
+                            var statListStruct = processContext.Read<StatListStruct>(_unitAny.pStatsListEx);
+                            var statList = new Dictionary<Stat, int>();
+                            var statValues = processContext.Read<StatValue>(statListStruct.Stats.FirstStatPtr, Convert.ToInt32(statListStruct.Stats.Size));
+                            foreach (var stat in statValues)
                             {
-                                statList.Add(stat.Stat, stat.Value);
+                                //ensure we dont add duplicates
+                                if (!statList.TryGetValue(stat.Stat, out var _))
+                                {
+                                    statList.Add(stat.Stat, stat.Value);
+                                }
                             }
-                        }
 
-                        _statList = statList;
-                        _immunities = GetImmunities();
+                            _statList = statList;
+                            _immunities = GetImmunities();
+                            _stateFlags = statListStruct.StateFlags;
+                        }
                         switch (_unitAny.UnitType)
                         {
                             case UnitType.Player:
                                 if (IsPlayer())
                                 {
-                                    _stateFlags = statListStruct.StateFlags;
-                                    _stateList = GetStateList();
+                                    if (IsPlayerUnit())
+                                    {
+                                        _skill = new Skill(_unitAny.pSkills);
+                                        _stateList = GetStateList();
+                                    }
                                     _name = Encoding.ASCII.GetString(processContext.Read<byte>(_unitAny.pUnitData, 16))
                                         .TrimEnd((char)0);
                                     _inventory = processContext.Read<Inventory>(_unitAny.pInventory);
@@ -98,13 +107,25 @@ namespace MapAssist.Types
 
                                 break;
                             case UnitType.Item:
-                                if (IsDropped())
+                                if (MapAssistConfiguration.Loaded.ItemLog.Enabled)
                                 {
                                     _itemData = processContext.Read<ItemData>(_unitAny.pUnitData);
+                                    if (IsDropped())
+                                    {
+                                        var processId = processContext.ProcessId;
+                                        Items.LogItem(this, processId);
+                                    }
                                 }
+                                break;
+                            case UnitType.Object:
+                                _objectData = processContext.Read<ObjectData>(_unitAny.pUnitData);
                                 break;
                         }
                         _updated = true;
+                    }
+                    else
+                    {
+                        return default(UnitAny);
                     }
                 }
             }
@@ -121,6 +142,7 @@ namespace MapAssist.Types
         public Dictionary<Stat, int> Stats => _statList;
         public MonsterData MonsterData => _monsterData;
         public ItemData ItemData => _itemData;
+        public ObjectData ObjectData => _objectData;
         public Act Act => _act;
         public Path Path => _path;
         public IntPtr StatsListExPtr => _unitAny.pStatsListEx;
@@ -134,6 +156,7 @@ namespace MapAssist.Types
         public List<Resist> Immunities => _immunities;
         public uint[] StateFlags => _stateFlags;
         public List<State> StateList => _stateList;
+        public Skill Skill => _skill;
 
         public bool IsMovable()
         {
@@ -146,7 +169,7 @@ namespace MapAssist.Types
         }
         public bool IsValidUnit()
         {
-            return _unitAny.pUnitData != IntPtr.Zero && _unitAny.pStatsListEx != IntPtr.Zero && _unitAny.UnitType <= UnitType.Tile;
+            return _unitAny.pUnitData != IntPtr.Zero && _unitAny.pPath != IntPtr.Zero && _unitAny.UnitType <= UnitType.Tile;
         }
 
         public bool IsPlayer()
@@ -156,30 +179,70 @@ namespace MapAssist.Types
 
         public bool IsPlayerUnit()
         {
-            using (var processContext = GameManager.GetProcessContext())
+            if (_isPlayerUnit)
             {
-                if (IsPlayer() && _unitAny.pInventory != IntPtr.Zero)
+                return true;
+            }
+            else
+            {
+                using (var processContext = GameManager.GetProcessContext())
                 {
-                    var expansionCharacter = processContext.Read<byte>(GameManager.ExpansionCheckOffset) == 1;
-                    var userBaseOffset = 0x30;
-                    var checkUser1 = 1;
-                    if (expansionCharacter)
+                    var processId = processContext.ProcessId;
+                    if (GameMemory.PlayerUnits.TryGetValue(processId, out var playerUnit))
                     {
-                        userBaseOffset = 0x70;
-                        checkUser1 = 0;
+                        if (!Equals(playerUnit, default(UnitAny)))
+                        {
+                            if (playerUnit.UnitId != UnitId)
+                            {
+                                return false;
+                            }
+                            else
+                            {
+                                if (!Equals(playerUnit, default(UnitAny)))
+                                {
+                                    _isPlayerUnit = true;
+                                    return true;
+                                }
+                            }
+                        }
                     }
-
-                    var userBaseCheck = processContext.Read<int>(IntPtr.Add(_unitAny.pInventory, userBaseOffset));
-                    if (userBaseCheck != checkUser1)
+                    if (IsPlayer() && _unitAny.pInventory != IntPtr.Zero)
                     {
-                        return true;
+                        var expansionCharacter = processContext.Read<byte>(GameManager.ExpansionCheckOffset) == 1;
+                        var userBaseOffset = 0x30;
+                        var checkUser1 = 1;
+                        if (expansionCharacter)
+                        {
+                            userBaseOffset = 0x70;
+                            checkUser1 = 0;
+                        }
+
+                        var userBaseCheck = processContext.Read<int>(IntPtr.Add(_unitAny.pInventory, userBaseOffset));
+                        if (userBaseCheck != checkUser1)
+                        {
+                            _isPlayerUnit = true;
+                            return true;
+                        }
                     }
                 }
             }
-
             return false;
         }
-
+        public bool IsPortal()
+        {
+            var castedType = (GameObject)TxtFileNo;
+            var name = Enum.GetName(typeof(GameObject), TxtFileNo);
+            return ((!string.IsNullOrWhiteSpace(name) && name.Contains("Portal") &&
+                     castedType != GameObject.WaypointPortal) || castedType == GameObject.HellGate);
+        }
+        public bool IsShrine()
+        {
+            if(UnitType == UnitType.Object && _objectData.pShrineTxt != IntPtr.Zero && _objectData.InteractType <= (byte)ShrineType.Poison)
+            {
+                return true;
+            }
+            return false;
+        }
         public bool IsMonster()
         {
             if (_updated)
@@ -202,9 +265,10 @@ namespace MapAssist.Types
             var itemMode = (ItemMode)_unitAny.Mode;
             return itemMode == ItemMode.DROPPING || itemMode == ItemMode.ONGROUND;
         }
+
         public string ItemHash()
         {
-            return Items.ItemNames[TxtFileNo] + "/" + Position.X + "/" + Position.Y;
+            return Items.ItemName(TxtFileNo) + "/" + Position.X + "/" + Position.Y;
         }
 
         private List<Resist> GetImmunities()

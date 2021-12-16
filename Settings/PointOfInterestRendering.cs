@@ -17,6 +17,7 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
 
+using MapAssist.Types;
 using System.Drawing;
 using YamlDotNet.Serialization;
 
@@ -31,7 +32,7 @@ namespace MapAssist.Settings
         public Shape IconShape { get; set; }
 
         [YamlMember(Alias = "IconSize", ApplyNamingConventions = false)]
-        public int IconSize { get; set; }
+        public float IconSize { get; set; }
 
         [YamlMember(Alias = "IconThickness", ApplyNamingConventions = false)]
         public float IconThickness;
@@ -75,8 +76,15 @@ namespace MapAssist.Settings
         public bool CanDrawLabel()
         {
             return LabelColor != Color.Transparent && !string.IsNullOrWhiteSpace(LabelFont) &&
-                   LabelFontSize > 0;
+                LabelFontSize > 0;
         }
     }
 
+    public class PortalRendering : PointOfInterestRendering
+    {
+        public bool CanDrawLabel(Area area)
+        {
+            return CanDrawLabel() && area != Area.Tristram;  // Skip drawing tristram label since we have a Cairn Stone as the quest destination already and can be seen from further away
+        }
+    }
 }

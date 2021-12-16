@@ -23,7 +23,7 @@ Mage Plate:
  - Qualities: 
     - normal
     - superior
-   Sockets: [3,4]
+   Sockets: [0, 3]
 
 # This monarch rule is really 2 separate rules.  Notice the "-" on each line
 # This will show all magic monarchs, as well as monarchs with 4 sockets of any quality (since quality is not specific in this rule)
@@ -217,6 +217,8 @@ Demonhead:
  - Qualities: [normal, superior]
    Sockets: [0, 3]
  - Qualities: unique #Andariel's Visage
+Winged Helm:
+ - Qualities: set #Guillaume's Face
 
 ### Circlets
 Circlet:
@@ -317,9 +319,6 @@ Swirling Crystal:
  #Tal Rasha's Lidless Eye
  - Qualities: set
 #Homunculus
-Heirophant Trophy:
- - Qualities: unique
-#Misspelled Homunculus
 Hierophant Trophy:
  - Qualities: unique
 #Herald of Zakarum
@@ -376,6 +375,9 @@ Heavy Belt:
 #Nosferatu's Coil
 Vampirefang Belt:
  - Qualities: unique
+#Thundergod's Vigor
+War Belt:
+ - Qualities: unique
 #Ondal's Wisdom
 Elder Staff:
  - Qualities: unique
@@ -393,6 +395,9 @@ Bone Knife:
  - Qualities: unique
 #Fleshripper
 Fanged Knife:
+ - Qualities: unique
+#Windforce
+Hydra Bow:
  - Qualities: unique
 
 ### Sets

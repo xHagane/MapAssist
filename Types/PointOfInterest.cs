@@ -17,8 +17,10 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
 
-using System.Drawing;
+using GameOverlay.Drawing;
 using MapAssist.Settings;
+using System;
+using System.Collections.Generic;
 
 namespace MapAssist.Types
 {
@@ -27,5 +29,38 @@ namespace MapAssist.Types
         public string Label;
         public Point Position;
         public PointOfInterestRendering RenderingSettings;
+        public PoiType Type;
+
+        public bool PoiMatchesPortal(HashSet<UnitAny> gameDataObjectList, Difficulty difficulty)
+        {
+            if (Type == PoiType.AreaPortal)
+            {
+                foreach (var gameObject in gameDataObjectList)
+                {
+                    if (gameObject.IsPortal())
+                    {
+                        var area = (Area) Enum.ToObject(typeof(Area), gameObject.ObjectData.InteractType);
+                        if (Utils.GetPortalName(area, difficulty) == Label)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+    }
+    public enum PoiType
+    {
+        NextArea,
+        PreviousArea,
+        Waypoint,
+        Quest,
+        AreaSpecificQuest,
+        AreaPortal,
+        Shrine,
+        SuperChest,
+        NormalChest,
+        ArmorWeapRack
     }
 }

@@ -17,33 +17,46 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
 
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using MapAssist.Helpers;
 using MapAssist.Interfaces;
-using System;
+using MapAssist.Structs;
 
 namespace MapAssist.Types
 {
-    public class UiSettings : IUpdatable<UiSettings>
+    public class Session : IUpdatable<Session>
     {
-        private readonly IntPtr _pUiSettings = IntPtr.Zero;
-        private Structs.UiSettings _uiSettings;
+        private readonly IntPtr _pSession;
+        private string _gameName;
+        private string _gamePass;
+        private string _gameIP;
 
-        public UiSettings(IntPtr pUiSettings)
+        public Session(IntPtr pSession)
         {
-            _pUiSettings = pUiSettings;
+            _pSession = pSession;
             Update();
         }
-
-        public UiSettings Update()
+        public Session Update()
         {
             using (var processContext = GameManager.GetProcessContext())
             {
-                _uiSettings = processContext.Read<Structs.UiSettings>(_pUiSettings);
+                var sessionData = processContext.Read<Structs.Session>(_pSession);
+
+                _gameName = Encoding.ASCII.GetString(sessionData.GameName).Substring(0, sessionData.GameNameLength);
+                _gamePass = Encoding.ASCII.GetString(sessionData.GamePass).Substring(0, sessionData.GamePassLength);
+                _gameIP = Encoding.ASCII.GetString(sessionData.GameIP).Substring(0, sessionData.GameIPLength);
             }
 
             return this;
         }
+        public string GameName => _gameName;
+        public string GamePass => _gamePass;
+        public string GameIP => _gameIP;
 
-        public bool MapShown => _uiSettings.MapShown == 1;
+
     }
 }

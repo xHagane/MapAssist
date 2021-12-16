@@ -25,18 +25,24 @@ using MapAssist.Settings;
 using System.ComponentModel;
 using System.Diagnostics;
 using NLog;
+using MapAssist.Helpers;
+using MapAssist.Types;
 
 namespace MapAssist
 {
     static class Program
     {
-        private static string appName = "MapAssist";
+        private static readonly string githubSha = "GITHUB_SHA";
+        private static readonly string githubRunNumber = "GITHUB_RUN_NUMBER";
+        private static readonly string appName = "MapAssist";
+        private static string messageBoxTitle = $"{appName} v1.0.0";
         private static Mutex mutex = null; 
         
         private static NotifyIcon trayIcon;
         private static Overlay overlay;
         private static BackgroundWorker backWorkOverlay = new BackgroundWorker();
         private static IKeyboardMouseEvents globalHook = Hook.GlobalEvents();
+        private static readonly Logger _log = LogManager.GetCurrentClassLogger(); 
 
         /// <summary>
         /// The main entry point for the application.
@@ -46,6 +52,11 @@ namespace MapAssist
         {
             try
             {
+                if (githubSha.Length == 40)
+                {
+                    messageBoxTitle += $".{githubRunNumber}";
+                }
+
                 bool createdNew;
                 mutex = new Mutex(true, appName, out createdNew);
 
@@ -54,14 +65,18 @@ namespace MapAssist
                     var rand = new Random();
                     var isGemActive = rand.NextDouble() < 0.05;
 
-                    MessageBox.Show("An instance of " + appName + " is already running." + (isGemActive ? " Better go catch it!" : ""), appName, MessageBoxButtons.OK);
-
+                    MessageBox.Show("An instance of " + appName + " is already running." + (isGemActive ? " Better go catch it!" : ""), messageBoxTitle, MessageBoxButtons.OK);
                     return;
                 }
 
-                var configurationOk = LoadMainConfiguration() && LoadLootLogConfiguration() && LoadLoggingConfiguration();
+                var configurationOk = LoadLoggingConfiguration() && LoadMainConfiguration() && LoadLootLogConfiguration();
                 if (configurationOk)
                 {
+                    if (githubSha.Length == 40)
+                    {
+                        _log.Info($"Running from commit {githubSha}");
+                    }
+
                     Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
                     Application.ThreadException += new ThreadExceptionEventHandler(Application_ThreadException);
                     AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
@@ -69,12 +84,30 @@ namespace MapAssist
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
 
+                    try
+                    {
+                        if (!MapApi.StartPipedChild())
+                        {
+                            MessageBox.Show($"{messageBoxTitle}: Unable to start d2mapapi pipe", messageBoxTitle, MessageBoxButtons.OK);
+                            return;
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        _log.Fatal(e);
+                        _log.Fatal(e, "Unable to start d2mapapi pipe.");
+
+                        var message = e.Message + Environment.NewLine + Environment.NewLine + e.StackTrace;
+                        MessageBox.Show(message, $"{messageBoxTitle}: Unable to start d2mapapi pipe", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+
                     var contextMenu = new ContextMenuStrip();
 
                     var configMenuItem = new ToolStripMenuItem("Config", null, Config);
                     var lootFilterMenuItem = new ToolStripMenuItem("Loot Filter", null, LootFilter);
-                    var restartMenuItem = new ToolStripMenuItem("Restart", null, Restart);
-                    var exitMenuItem = new ToolStripMenuItem("Exit", null, Exit);
+                    var restartMenuItem = new ToolStripMenuItem("Restart", null, TrayRestart);
+                    var exitMenuItem = new ToolStripMenuItem("Exit", null, TrayExit);
                     contextMenu.Items.Add(exitMenuItem);
 
                     contextMenu.Items.AddRange(new ToolStripItem[] {
@@ -100,10 +133,12 @@ namespace MapAssist
                             overlay.KeyPressHandler(sender, args);
                         }
                     };
-
+                    
                     backWorkOverlay.DoWork += new DoWorkEventHandler(RunOverlay);
                     backWorkOverlay.WorkerSupportsCancellation = true;
                     backWorkOverlay.RunWorkerAsync();
+
+                    GameManager.MonitorForegroundWindow();
 
                     Application.Run();
                 }
@@ -116,7 +151,7 @@ namespace MapAssist
 
         public static void RunOverlay(object sender, DoWorkEventArgs e)
         {
-            using (overlay = new Overlay(globalHook))
+            using (overlay = new Overlay())
             {
                 overlay.Run();
             }
@@ -124,9 +159,10 @@ namespace MapAssist
 
         private static void ProcessException(Exception e)
         {
-            var message = e.Message + Environment.NewLine + Environment.NewLine + e.StackTrace;
+            _log.Fatal(e);
 
-            MessageBox.Show(message, "MapAssist Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            var message = e.Message + Environment.NewLine + Environment.NewLine + e.StackTrace;
+            MessageBox.Show(message, $"{messageBoxTitle}: Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             Application.Exit();
         }
@@ -147,16 +183,21 @@ namespace MapAssist
             try
             {
                 MapAssistConfiguration.Load();
+                MapAssistConfiguration.Loaded.RenderingConfiguration.InitialSize = MapAssistConfiguration.Loaded.RenderingConfiguration.Size;
                 configurationOk = true;
             }
             catch (YamlDotNet.Core.YamlException e)
             {
-                MessageBox.Show(e.Message, "Yaml parsing error occurred. Invalid MapAssist configuration.",
+                _log.Fatal(e);
+                _log.Fatal(e, "Invalid yaml for configuration file");
+
+                MessageBox.Show(e.Message, $"{messageBoxTitle}: MapAssist configuration yaml parsing error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             catch (Exception e)
             {
-                MessageBox.Show(e.Message, "General error occurred!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                _log.Fatal(e, "Unknown error loading main configuration");
+                MessageBox.Show(e.Message, $"{messageBoxTitle}: General error occurred", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
 
             return configurationOk;
@@ -168,16 +209,21 @@ namespace MapAssist
             try
             {
                 LootLogConfiguration.Load();
+                Items.LoadLocalization();
                 configurationOk = true;
             }
             catch (YamlDotNet.Core.YamlException e)
             {
-                MessageBox.Show(e.Message, "Yaml parsing error occurred. Invalid loot filter configuration.",
+                _log.Fatal(e);
+                _log.Fatal("Invalid loot log yaml file");
+
+                MessageBox.Show(e.Message, $"{messageBoxTitle}: Loop filter yaml parsing error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             catch (Exception e)
             {
-                MessageBox.Show(e.Message, "General error occurred!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                _log.Fatal(e, $"Unable to initialize Loot Log configuration");
+                MessageBox.Show(e.Message, $"{messageBoxTitle}: General error occurred", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
 
             return configurationOk;
@@ -196,7 +242,7 @@ namespace MapAssist
                     FileName = "logs\\log.txt",
                     ArchiveNumbering = NLog.Targets.ArchiveNumberingMode.DateAndSequence,
                     ArchiveOldFileOnStartup = true,
-                    MaxArchiveFiles = 20
+                    MaxArchiveFiles = 5
                 };
                 var logconsole = new NLog.Targets.ConsoleTarget("logconsole");
 
@@ -211,7 +257,7 @@ namespace MapAssist
             }
             catch (Exception e)
             {
-                MessageBox.Show(e.Message, "General error occurred!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(e.Message, $"{messageBoxTitle}: General error occurred", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
 
             return configurationOk;
@@ -226,15 +272,19 @@ namespace MapAssist
         private static void LootFilter(object sender, EventArgs e)
         {
             var _path = AppDomain.CurrentDomain.BaseDirectory;
-            Process.Start(_path + "\\ItemFilter.yaml");
+            Process.Start(_path + "\\" + MapAssistConfiguration.Loaded.ItemLog.FilterFileName);
         }
 
         private static void Dispose()
         {
-            trayIcon.Visible = false;
+            _log.Info("Disposing");
+            _log.Info(new StackTrace());
 
+            GameManager.Dispose();
+            MapApi.Dispose();
             globalHook.Dispose();
             overlay.Dispose();
+            trayIcon.Dispose();
 
             if (backWorkOverlay.IsBusy)
             {
@@ -242,17 +292,22 @@ namespace MapAssist
             }
 
             mutex.Dispose();
+
+            _log.Info("Finished disposing");
+            LogManager.Flush();
         }
 
-        private static void Restart(object sender, EventArgs e)
+        private static void TrayRestart(object sender, EventArgs e)
         {
+            _log.Info("Restarting from tray icon");
             Dispose();
 
             Application.Restart();
         }
 
-        private static void Exit(object sender, EventArgs e)
+        private static void TrayExit(object sender, EventArgs e)
         {
+            _log.Info("Exiting from tray icon");
             Dispose();
 
             Application.Exit();

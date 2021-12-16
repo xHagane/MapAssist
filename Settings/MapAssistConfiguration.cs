@@ -17,8 +17,6 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
 
-using System;
-using System.Collections.Generic;
 using System.Drawing;
 using MapAssist.Files;
 using MapAssist.Settings;
@@ -32,8 +30,7 @@ namespace MapAssist.Settings
         public static MapAssistConfiguration Loaded { get; set; }
         public static void Load()
         {
-            var fileName = $"./Config.yaml";
-            Loaded = ConfigurationParser<MapAssistConfiguration>.ParseConfiguration(fileName);
+            Loaded = ConfigurationParser<MapAssistConfiguration>.ParseConfigurationMain(Properties.Resources.Config, $"./Config.yaml");
         }
 
         public void Save()
@@ -43,6 +40,12 @@ namespace MapAssist.Settings
 
         [YamlMember(Alias = "UpdateTime", ApplyNamingConventions = false)]
         public int UpdateTime { get; set; }
+        
+        [YamlMember(Alias = "D2Path", ApplyNamingConventions = false)]
+        public string D2Path { get; set; }
+
+        [YamlMember(Alias = "HuntingIP", ApplyNamingConventions = false)]
+        public string HuntingIP { get; set; }
 
         [YamlMember(Alias = "PrefetchAreas", ApplyNamingConventions = false)]
         public Area[] PrefetchAreas { get; set; }
@@ -65,9 +68,6 @@ namespace MapAssist.Settings
         [YamlMember(Alias = "HotkeyConfiguration", ApplyNamingConventions = false)]
         public HotkeyConfiguration HotkeyConfiguration { get; set; }
 
-        [YamlMember(Alias = "ApiConfiguration", ApplyNamingConventions = false)]
-        public ApiConfiguration ApiConfiguration { get; set; }
-
         [YamlMember(Alias = "GameInfo", ApplyNamingConventions = false)]
         public GameInfoConfiguration GameInfo { get; set; }
 
@@ -77,22 +77,12 @@ namespace MapAssist.Settings
 
     public class MapColorConfiguration
     {
-        [YamlMember(Alias = "MapColors", ApplyNamingConventions = false)]
-        public Dictionary<int, Color?> MapColors { get; set; }
-
-        public Color? LookupMapColor(int type)
-        {
-            if (!MapColors.ContainsKey(type))
-            {
-                MapColors[type] = null;
-            }
-            return MapColors[type];
-        }
-
-        public MapColorConfiguration()
-        {
-            MapColors = new Dictionary<int, Color?>();
-        }
+        
+        [YamlMember(Alias = "Walkable", ApplyNamingConventions = false)]
+        public Color? Walkable { get; set; }
+        
+        [YamlMember(Alias = "Border", ApplyNamingConventions = false)]
+        public Color? Border { get; set; }
     }
 
     public class MapConfiguration
@@ -102,7 +92,7 @@ namespace MapAssist.Settings
 
         [YamlMember(Alias = "UniqueMonster", ApplyNamingConventions = false)]
         public IconRendering UniqueMonster { get; set; }
-        
+
         [YamlMember(Alias = "EliteMonster", ApplyNamingConventions = false)]
         public IconRendering EliteMonster { get; set; }
 
@@ -124,6 +114,12 @@ namespace MapAssist.Settings
         [YamlMember(Alias = "Player", ApplyNamingConventions = false)]
         public PointOfInterestRendering Player { get; set; }
 
+        [YamlMember(Alias = "NonPartyPlayer", ApplyNamingConventions = false)]
+        public PointOfInterestRendering NonPartyPlayer { get; set; }
+
+        [YamlMember(Alias = "Portal", ApplyNamingConventions = false)]
+        public PortalRendering Portal { get; set; }
+
         [YamlMember(Alias = "SuperChest", ApplyNamingConventions = false)]
         public PointOfInterestRendering SuperChest { get; set; }
 
@@ -144,25 +140,32 @@ namespace MapAssist.Settings
 public class RenderingConfiguration
 {
     [YamlMember(Alias = "Opacity", ApplyNamingConventions = false)]
-    public double Opacity { get; set; }
+    public float Opacity { get; set; }
+
+    [YamlMember(Alias = "IconOpacity", ApplyNamingConventions = false)]
+    public float IconOpacity { get; set; }
 
     [YamlMember(Alias = "OverlayMode", ApplyNamingConventions = false)]
     public bool OverlayMode { get; set; }
 
-    [YamlMember(Alias = "AlwaysOnTop", ApplyNamingConventions = false)]
-    public bool AlwaysOnTop { get; set; }
-
     [YamlMember(Alias = "ToggleViaInGameMap", ApplyNamingConventions = false)]
     public bool ToggleViaInGameMap { get; set; }
 
+    [YamlMember(Alias = "ToggleViaInGamePanels", ApplyNamingConventions = false)]
+    public bool ToggleViaInGamePanels { get; set; }
+
     [YamlMember(Alias = "Size", ApplyNamingConventions = false)]
     public int Size { get; set; }
+    public int InitialSize { get; set; }
 
     [YamlMember(Alias = "Position", ApplyNamingConventions = false)]
     public MapPosition Position { get; set; }
 
-    [YamlMember(Alias = "Rotate", ApplyNamingConventions = false)]
-    public bool Rotate { get; set; }
+    [YamlMember(Alias = "BuffPosition", ApplyNamingConventions = false)]
+    public BuffPosition BuffPosition { get; set; }
+
+    [YamlMember(Alias = "BuffSize", ApplyNamingConventions = false)]
+    public float BuffSize { get; set; }
 
     [YamlMember(Alias = "ZoomLevel", ApplyNamingConventions = false)]
     public float ZoomLevel { get; set; }
@@ -178,39 +181,35 @@ public class HotkeyConfiguration
 
     [YamlMember(Alias = "ZoomOutKey", ApplyNamingConventions = false)]
     public char ZoomOutKey { get; set; }
-}
 
-public class ApiConfiguration
-{
-    [YamlMember(Alias = "Endpoint", ApplyNamingConventions = false)]
-    public string Endpoint { get; set; }
-
-    [YamlMember(Alias = "Token", ApplyNamingConventions = false)]
-    public string Token { get; set; }
+    [YamlMember(Alias = "GameInfoKey", ApplyNamingConventions = false)]
+    public char GameInfoKey { get; set; }
 }
 
 public class GameInfoConfiguration
 {
-    [YamlMember(Alias = "AlwaysShow", ApplyNamingConventions = false)]
-    public bool AlwaysShow { get; set; }
-    
+    [YamlMember(Alias = "Enabled", ApplyNamingConventions = false)]
+    public bool Enabled { get; set; }
+
     [YamlMember(Alias = "ShowOverlayFPS", ApplyNamingConventions = false)]
     public bool ShowOverlayFPS { get; set; }
 }
 
 public class ItemLogConfiguration
 {
+    [YamlMember(Alias = "Enabled", ApplyNamingConventions = false)]
+    public bool Enabled { get; set; }
+
     [YamlMember(Alias = "FilterFileName", ApplyNamingConventions = false)]
     public string FilterFileName { get; set; }
 
     [YamlMember(Alias = "PlaySoundOnDrop", ApplyNamingConventions = false)]
     public bool PlaySoundOnDrop { get; set; }
 
-    [YamlMember(Alias = "MaxSize", ApplyNamingConventions = false)]
-    public int MaxSize { get; set; }
-
-    [YamlMember(Alias = "AlwaysShow", ApplyNamingConventions = false)]
-    public bool AlwaysShow { get; set; }
+    [YamlMember(Alias = "DisplayForSeconds", ApplyNamingConventions = false)]
+    public double DisplayForSeconds { get; set; }
+    [YamlMember(Alias = "SoundFile", ApplyNamingConventions = false)]
+    public string SoundFile { get; set; }
 
     [YamlMember(Alias = "LabelFont", ApplyNamingConventions = false)]
     public string LabelFont { get; set; }

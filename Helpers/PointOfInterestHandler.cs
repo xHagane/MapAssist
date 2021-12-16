@@ -17,10 +17,11 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
 
+using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
+using GameOverlay.Drawing;
 using MapAssist.Settings;
 using MapAssist.Types;
 
@@ -28,25 +29,92 @@ namespace MapAssist.Helpers
 {
     public static class PointOfInterestHandler
     {
-        private static readonly Dictionary<Area, GameObject> AreaSpecificQuestObjects = new Dictionary<Area, GameObject>
+        private static readonly Dictionary<Area, Area> AreaPreferredNextArea = new Dictionary<Area, Area>()
         {
-            [Area.MatronsDen] = GameObject.SparklyChest, // Lilith
-            [Area.FurnaceOfPain] = GameObject.SparklyChest, // Über Izual
+            [Area.BloodMoor] = Area.ColdPlains,
+            [Area.ColdPlains] = Area.StonyField,
+            [Area.UndergroundPassageLevel1] = Area.DarkWood,
+            [Area.DarkWood] = Area.BlackMarsh,
+            [Area.BlackMarsh] = Area.TamoeHighland,
+            [Area.RockyWaste] = Area.DryHills,
+            [Area.DryHills] = Area.FarOasis,
+            [Area.FarOasis] = Area.LostCity,
+            [Area.SpiderForest] = Area.GreatMarsh,
+            [Area.FlayerJungle] = Area.LowerKurast,
+            [Area.KurastBazaar] = Area.UpperKurast,
+            [Area.UpperKurast] = Area.KurastCauseway,
+            [Area.KurastCauseway] = Area.Travincal,
         };
 
-        private static readonly HashSet<GameObject> QuestObjects = new HashSet<GameObject>
+        private static readonly Dictionary<Area, Area> AreaPreferredQuestArea = new Dictionary<Area, Area>()
         {
-            GameObject.HoradricCubeChest,
-            GameObject.HoradricScrollChest,
-            GameObject.StaffOfKingsChest,
-            GameObject.HoradricOrifice,
-            GameObject.YetAnotherTome, // Summoner in Arcane Sanctuary
-            GameObject.FrozenAnya,
-            GameObject.InifussTree,
-            GameObject.CairnStoneAlpha,
-            GameObject.WirtCorpse,
-            GameObject.HellForge,
-            GameObject.NihlathakWildernessStartPosition
+            [Area.BloodMoor] = Area.DenOfEvil,
+            [Area.ColdPlains] = Area.BurialGrounds,
+            [Area.BlackMarsh] = Area.ForgottenTower,
+            [Area.DryHills] = Area.HallsOfTheDeadLevel1,
+            [Area.FarOasis] = Area.MaggotLairLevel1,
+            [Area.LostCity] = Area.ValleyOfSnakes,
+            [Area.SpiderForest] = Area.SpiderCavern,
+            [Area.FlayerJungle] = Area.FlayerDungeonLevel1,
+            [Area.KurastBazaar] = Area.RuinedTemple,
+            [Area.CrystallinePassage] = Area.FrozenRiver,
+        };
+
+        private static readonly Dictionary<Area, Dictionary<GameObject, string>> AreaSpecificQuestObjects = new Dictionary<Area, Dictionary<GameObject, string>>()
+        {
+            [Area.StonyField] = new Dictionary<GameObject, string>()
+            {
+                [GameObject.CairnStoneAlpha] = "Tristram",
+            },
+            [Area.MatronsDen] = new Dictionary<GameObject, string>()
+            {
+                [GameObject.SparklyChest] = "Lilith",
+            },
+            [Area.FurnaceOfPain] = new Dictionary<GameObject, string>()
+            {
+                [GameObject.SparklyChest] = "Uber Izual",
+            },
+            [Area.PalaceCellarLevel3] = new Dictionary<GameObject, string>()
+            {
+                [GameObject.ArcaneSanctuaryPortal] = "Arcane Sanctuary",
+            },
+        };
+
+        private static readonly Dictionary<Area, Dictionary<GameObject, Area>> AreaPortals = new Dictionary<Area, Dictionary<GameObject, Area>>()
+        {
+            [Area.FrigidHighlands] = new Dictionary<GameObject, Area>()
+            {
+                [GameObject.PermanentTownPortal] = Area.Abaddon,
+            },
+            [Area.ArreatPlateau] = new Dictionary<GameObject, Area>()
+            {
+                [GameObject.PermanentTownPortal] = Area.PitOfAcheron,
+            },
+            [Area.FrozenTundra] = new Dictionary<GameObject, Area>()
+            {
+                [GameObject.PermanentTownPortal] = Area.InfernalPit,
+            },
+        };
+
+        private static readonly Dictionary<GameObject, string> QuestObjects = new Dictionary<GameObject, string>
+        {
+            [GameObject.CairnStoneAlpha] = "Tristram",
+            [GameObject.WirtCorpse] = "Wirt's Leg",
+            [GameObject.InifussTree] = "Inifuss Tree",
+            [GameObject.Malus] = "Malus",
+            [GameObject.HoradricScrollChest] = "Horadric Scroll",
+            [GameObject.HoradricCubeChest] = "Horadric Cube",
+            [GameObject.StaffOfKingsChest] = "Staff of Kings",
+            [GameObject.YetAnotherTome] = "Summoner",
+            [GameObject.HoradricOrifice] = "Orifice",
+            [GameObject.KhalimChest1] = "Khalim's Heart",
+            [GameObject.KhalimChest2] = "Khalim's Brain",
+            [GameObject.KhalimChest3] = "Khalim's Eye",
+            [GameObject.GidbinnAltarDecoy] = "Gidbinn",
+            [GameObject.HellForge] = "Hell Forge",
+            [GameObject.DrehyaWildernessStartPosition] = "Anya",
+            [GameObject.NihlathakWildernessStartPosition] = "Nihlathak",
+            [GameObject.CagedWussie] = "Prisoners",
         };
 
         private static readonly HashSet<GameObject> SuperChests = new HashSet<GameObject>
@@ -56,7 +124,8 @@ namespace MapAssist.Helpers
             GameObject.ArcaneLargeChestLeft,
             GameObject.ArcaneLargeChestRight,
             GameObject.ArcaneSmallChestLeft,
-            GameObject.ArcaneSmallChestRight
+            GameObject.ArcaneSmallChestRight,
+            GameObject.ExpansionSpecialChest,
         };
 
         private static readonly HashSet<GameObject> NormalChests = new HashSet<GameObject>
@@ -106,7 +175,6 @@ namespace MapAssist.Helpers
             GameObject.ExpansionSmallChestLeft,
             GameObject.ExpansionSmallChestRight,
             GameObject.ExpansionExplodingChest,
-            GameObject.ExpansionSpecialChest,
             GameObject.ExpansionSnowyWoodChestLeft,
             GameObject.ExpansionSnowyWoodChestRight,
             GameObject.ExpansionSnowyWoodChest2Left,
@@ -137,11 +205,18 @@ namespace MapAssist.Helpers
             GameObject.DesertShrine4,
             GameObject.DesertShrine5,
             GameObject.SteleDesertMagicShrine,
+            GameObject.JungleShrine2,
+            GameObject.JungleShrine3,
+            GameObject.JungleShrine4,
+            GameObject.JungleShrine5,
         };
 
-        public static List<PointOfInterest> Get(MapApi mapApi, AreaData areaData)
+        public static List<PointOfInterest> Get(MapApi mapApi, AreaData areaData, GameData gameData)
         {
             var pointOfInterest = new List<PointOfInterest>();
+            var areaRenderDecided = new List<Area>();
+
+            if (areaData.Area == Area.UberTristram) return pointOfInterest; // No actual points of interest here, Wirt's leg appears without this line
 
             switch (areaData.Area)
             {
@@ -168,56 +243,128 @@ namespace MapAssist.Helpers
                     {
                         pointOfInterest.Add(new PointOfInterest
                         {
-                            Label = realTomb.Name(),
+                            Label = Utils.GetAreaLabel(realTomb, gameData.Difficulty),
                             Position = areaData.AdjacentLevels[realTomb].Exits[0],
-                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.NextArea
+                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.NextArea,
+                            Type = PoiType.NextArea
                         });
                     }
 
                     break;
                 default:
-                    // By default, draw a line to the next highest neighbouring area.
-                    // Also draw labels and previous doors for all other areas.
                     if (areaData.AdjacentLevels.Any())
                     {
-                        Area highestArea = areaData.AdjacentLevels.Keys.Max();
-                        if (highestArea > areaData.Area)
+                        // Next Area Point of Interest
+                        if (areaData.Area == Area.TamoeHighland)
                         {
-                            if (areaData.AdjacentLevels[highestArea].Exits.Any())
+                            var monastery = areaData.AdjacentLevels.First(level => level.Key == Area.MonasteryGate).Value;
+
+                            var monasteryArea = mapApi.GetMapData(Area.MonasteryGate);
+                            var outerCloister = monasteryArea.AdjacentLevels.First(level => level.Key == Area.OuterCloister).Value;
+
+                            pointOfInterest.Add(new PointOfInterest
+                            {
+                                Label = Utils.GetAreaLabel(monastery.Area, gameData.Difficulty),
+                                Position = new Point(outerCloister.Exits[0].X, monastery.Exits[0].Y),
+                                RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.NextArea,
+                                Type = PoiType.NextArea
+                            });
+                            areaRenderDecided.Add(Area.MonasteryGate);
+                        }
+                        else if (AreaPreferredNextArea.TryGetValue(areaData.Area, out var nextArea))
+                        {
+                            var nextLevel = areaData.AdjacentLevels[nextArea];
+                            if (nextLevel.Exits.Any())
                             {
                                 pointOfInterest.Add(new PointOfInterest
                                 {
-                                    Label = highestArea.Name(),
-                                    Position = areaData.AdjacentLevels[highestArea].Exits[0],
-                                    RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.NextArea
+                                    Label = Utils.GetAreaLabel(nextArea, gameData.Difficulty),
+                                    Position = nextLevel.Exits[0],
+                                    RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.NextArea,
+                                    Type = PoiType.NextArea
                                 });
+                                areaRenderDecided.Add(nextArea);
+                            }
+                        }
+                        else
+                        {
+                            var maxAdjacentArea = areaData.AdjacentLevels.Keys.Max();
+                            if (maxAdjacentArea > areaData.Area)
+                            {
+                                var nextLevel = areaData.AdjacentLevels[maxAdjacentArea];
+                                if (nextLevel.Exits.Any())
+                                {
+                                    pointOfInterest.Add(new PointOfInterest
+                                    {
+                                        Label = Utils.GetAreaLabel(maxAdjacentArea, gameData.Difficulty),
+                                        Position = nextLevel.Exits[0],
+                                        RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.NextArea,
+                                        Type = PoiType.NextArea
+                                    });
+                                    areaRenderDecided.Add(maxAdjacentArea);
+                                }
                             }
                         }
 
-                        foreach (AdjacentLevel level in areaData.AdjacentLevels.Values)
+                        // Quest Area Point of Interest
+                        if (AreaPreferredQuestArea.TryGetValue(areaData.Area, out var questArea))
                         {
-                            // Already have something drawn for this.
-                            if (level.Area == highestArea)
-                            {
-                                continue;
-                            }
-
-                            foreach (Point position in level.Exits)
+                            var questLevel = areaData.AdjacentLevels[questArea];
+                            if (questLevel.Exits.Any())
                             {
                                 pointOfInterest.Add(new PointOfInterest
                                 {
-                                    Label = level.Area.Name(),
-                                    Position = position,
-                                    RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.PreviousArea
+                                    Label = Utils.GetAreaLabel(questArea, gameData.Difficulty),
+                                    Position = questLevel.Exits[0],
+                                    RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.Quest,
+                                    Type = PoiType.Quest
                                 });
+                                areaRenderDecided.Add(questArea);
+                            }
+                        }
+
+                        // Previous Area Point of Interest
+                        if (areaData.Area == Area.MonasteryGate)
+                        {
+                            var outerCloister = areaData.AdjacentLevels.First(level => level.Key == Area.OuterCloister).Value;
+                            var tamoe = areaData.AdjacentLevels.First(level => level.Key == Area.TamoeHighland).Value;
+
+                            pointOfInterest.Add(new PointOfInterest
+                            {
+                                Label = Utils.GetAreaLabel(tamoe.Area, gameData.Difficulty),
+                                Position = new Point(outerCloister.Exits[0].X, tamoe.Exits[0].Y),
+                                RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.PreviousArea,
+                                Type = PoiType.PreviousArea
+                            });
+                        }
+                        else
+                        {
+                            foreach (var level in areaData.AdjacentLevels.Values)
+                            {
+                                // Already made render decision for this.
+                                if (areaRenderDecided.Contains(level.Area))
+                                {
+                                    continue;
+                                }
+
+                                foreach (var position in level.Exits)
+                                {
+                                    pointOfInterest.Add(new PointOfInterest
+                                    {
+                                        Label = Utils.GetAreaLabel(level.Area, gameData.Difficulty),
+                                        Position = position,
+                                        RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.PreviousArea,
+                                        Type = PoiType.PreviousArea
+                                    });
+                                }
                             }
                         }
                     }
 
                     break;
             }
-
-            foreach (KeyValuePair<GameObject, Point[]> objAndPoints in areaData.Objects)
+            
+            foreach (var objAndPoints in areaData.Objects)
             {
                 GameObject obj = objAndPoints.Key;
                 Point[] points = objAndPoints.Value;
@@ -227,35 +374,59 @@ namespace MapAssist.Helpers
                     continue;
                 }
 
+                // Area-specific quest objects
+                if (AreaSpecificQuestObjects.ContainsKey(areaData.Area))
+                {
+                    if (AreaSpecificQuestObjects[areaData.Area].ContainsKey(obj))
+                    {
+                        pointOfInterest.Add(new PointOfInterest
+                        {
+                            Label = AreaSpecificQuestObjects[areaData.Area][obj],
+                            Position = points[0],
+                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.Quest,
+                            Type = PoiType.AreaSpecificQuest
+                        });
+                    }
+                }
+
+                // Area-specific landmarks
+                if (AreaPortals.ContainsKey(areaData.Area))
+                {
+                    if (AreaPortals[areaData.Area].ContainsKey(obj))
+                    {
+                        pointOfInterest.Add(new PointOfInterest
+                        {
+                            Label = Utils.GetPortalName(AreaPortals[areaData.Area][obj], gameData.Difficulty),
+                            Position = points[0],
+                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.Portal,
+                            Type = PoiType.AreaPortal
+                        });
+                    }
+                }
+
                 // Waypoints
                 if (obj.IsWaypoint())
                 {
                     pointOfInterest.Add(new PointOfInterest
                     {
-                        Label = obj.ToString(),
+                        Label = areaData.Area.Name(),
                         Position = points[0],
-                        RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.Waypoint
+                        RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.Waypoint,
+                        Type = PoiType.Waypoint
                     });
                 }
                 // Quest objects
-                else if (QuestObjects.Contains(obj))
+                else if (QuestObjects.TryGetValue(obj, out var questObjectName))
                 {
-                    pointOfInterest.Add(new PointOfInterest
-                    {
-                        Label = obj.ToString(), 
-                        Position = points[0], 
-                        RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.Quest
-                    });
-                }
-                // Area-specific quest objects
-                else if (AreaSpecificQuestObjects.ContainsKey(areaData.Area))
-                {
-                    if (AreaSpecificQuestObjects[areaData.Area] == obj)
-                    {
+                    var usePoints = obj == GameObject.CagedWussie ? points : // Mark all 3 sets of prisoners in Frigid Highlands as quest destinations
+                        new Point[] { points[0] };
+
+                    foreach (var point in usePoints)
+                    { 
                         pointOfInterest.Add(new PointOfInterest
                         {
-                            Label = obj.ToString(),
-                            Position = points[0],
+                            Label = questObjectName,
+                            Position = point,
                             RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.Quest
                         });
                     }
@@ -263,55 +434,74 @@ namespace MapAssist.Helpers
                 // Shrines
                 else if (Shrines.Contains(obj))
                 {
-                    foreach (Point point in points)
+                    foreach (var point in points)
                     {
                         pointOfInterest.Add(new PointOfInterest
                         {
-                            Label = obj.ToString(), 
-                            Position = point, 
-                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.Shrine
+                            Label = obj.ToString(),
+                            Position = point,
+                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.Shrine,
+                            Type = PoiType.Shrine
                         });
                     }
                 }
                 // Super Chest
                 else if (SuperChests.Contains(obj))
                 {
-                    foreach (Point point in points)
+                    foreach (var point in points)
                     {
                         pointOfInterest.Add(new PointOfInterest
                         {
                             Label = obj.ToString(),
                             Position = point,
-                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.SuperChest
+                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.SuperChest,
+                            Type = PoiType.SuperChest
                         });
                     }
                 }
                 // Normal Chest
                 else if (NormalChests.Contains(obj))
                 {
-                    foreach (Point point in points)
+                    foreach (var point in points)
                     {
                         pointOfInterest.Add(new PointOfInterest
                         {
                             Label = obj.ToString(),
                             Position = point,
-                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.NormalChest
+                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.NormalChest,
+                            Type = PoiType.NormalChest
                         });
                     }
                 }
                 // Armor Stands & Weapon Racks
                 else if (ArmorWeapRacks.Contains(obj))
                 {
-                    foreach (Point point in points)
+                    foreach (var point in points)
                     {
                         pointOfInterest.Add(new PointOfInterest
                         {
                             Label = obj.ToString(),
                             Position = point,
-                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.ArmorWeapRack
+                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.ArmorWeapRack,
+                            Type = PoiType.ArmorWeapRack
                         });
                     }
                 }
+            }
+
+            switch(areaData.Area)
+            {
+                case Area.PlainsOfDespair:
+                    foreach (var objAndPoints in areaData.NPCs)
+                    {
+                        pointOfInterest.Add(new PointOfInterest
+                        {
+                            Label = "Izual",
+                            Position = objAndPoints.Value[0],
+                            RenderingSettings = MapAssistConfiguration.Loaded.MapConfiguration.Quest
+                        });
+                    }
+                    break;
             }
 
             return pointOfInterest;

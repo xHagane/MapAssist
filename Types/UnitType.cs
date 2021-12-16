@@ -24,7 +24,7 @@ namespace MapAssist.Types
         Player = 0,
         Monster,
         Object,
-        Missle,
+        Missile,
         Item,
         Tile,
     }
